@@ -264,15 +264,11 @@ def test_beta(seed=0):
     key1, key2 = random.split(key)
     labels = random.bernoulli(key1, probs).astype(jnp.float32)
     labels_biased = random.bernoulli(key2, probs * 0.8).astype(jnp.float32)
-    
-    ece = beta_calibration_error(probs, labels,1)
+
+    ece = beta_calibration_error(probs, labels, 1)
     ece_biased = beta_calibration_error(probs, labels_biased, 1)
-    print(
-        "Beta: {0} Beta Biased: {1}".format(
-            ece, ece_biased
-        )
-    )
-    
+    print("Beta: {0} Beta Biased: {1}".format(ece, ece_biased))
+
 
 if __name__ == "__main__":
     print("Dirichlet Calibration Error")

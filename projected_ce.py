@@ -1,4 +1,4 @@
-# A collection of calibration metric uses the idea of projection. 
+# A collection of calibration metric uses the idea of projection.
 import jax
 import jax.numpy as jnp
 from jax import scipy, random
