@@ -128,29 +128,31 @@ def dirichlet_calibration_error(probs, labels, bandwidth, p=1):
     return (dce / N) ** (1 / p)
 
 
-def beta_kernel(c_j, c_i, bandwidth):
+def log_beta_kernel(c_i, c_j, bandwidth):
     """
     Compute the Beta kernel for 1D confidence values.
 
     Args:
-        c_j: JAX array of shape (M,), the reference confidence values.
-        c_i: JAX array of shape (N,), the confidence values to compare against.
+        c_j: JAX array of shape (), the reference confidence values.
+        c_i: JAX array of shape (), the confidence values to compare against.
         bandwidth: Kernel bandwidth.
 
     Returns:
-        JAX array of shape (M, N), the Beta kernel values.
+        JAX array of shape (), the Beta kernel values.
     """
     alpha = c_i / bandwidth + 1
     beta = (1 - c_i) / bandwidth + 1
 
     log_beta = betaln(alpha, beta)
     log_kernel = (
-        (alpha - 1) * jnp.log(c_j[:, None])
-        + (beta - 1) * jnp.log(1 - c_j[:, None])
+        (alpha - 1) * jnp.log(c_j)
+        + (beta - 1) * jnp.log(1 - c_j)
         - log_beta
     )
     return log_kernel
 
+vec_log_beta = jax.vmap(log_beta_kernel,(0,None,None),0)
+vec_log_beta = jax.vmap(log_beta_kernel, (None,0, None), 1)
 
 def compute_conditional_expectation_beta(c_j, confidences, labels, bandwidth):
     """
@@ -165,11 +167,11 @@ def compute_conditional_expectation_beta(c_j, confidences, labels, bandwidth):
     Returns:
         JAX array of shape (M,), the conditional expectation E[y | c].
     """
-    log_kernels = beta_kernel(c_j, confidences, bandwidth)
-    kernels = jnp.exp(log_kernels)
+    log_kernels = vec_log_beta(c_j, confidences, bandwidth) #M \times N
+    kernels = jnp.exp(log_kernels) 
 
     # Avoid division by zero
-    denom = jnp.sum(kernels, axis=1, keepdims=True)
+    denom = jnp.sum(kernels, axis=1, keepdims=True) #M
     denom = jnp.maximum(denom, 1e-10)
 
     # Compute conditional expectations
@@ -192,14 +194,8 @@ def beta_calibration_error(confidences, labels, bandwidth, p=1):
     """
     N = confidences.shape[0]
 
-    # Vectorized computation of conditional expectations using vmap
-    cond_exp_fn = jax.vmap(
-        lambda c_j: compute_conditional_expectation_beta(
-            jnp.array([c_j]), confidences, labels, bandwidth
-        ),
-        in_axes=0,
-    )
-    cond_exps = cond_exp_fn(confidences)
+ 
+    cond_exps = compute_conditional_expectation_beta(confidences,confidences,labels,bandwidth)
 
     # Compute the p-norm calibration error
     bce = jnp.sum(jnp.abs(cond_exps - confidences) ** p)
